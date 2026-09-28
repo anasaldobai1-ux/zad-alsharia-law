@@ -3,30 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+
   <title>زاد الشريعة والقانون</title>
 
-  <!-- تحميل مكتبة Supabase مباشرة لضمان عدم التعليق -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  
   <link rel="stylesheet" href="style.css">
 
   <style>
-    /* تنسيقات بديلة في حال لم يُحمّل ملف style.css الخارجي */
-    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 15px; background: #f8fafc; color: #1e293b; }
-    .top { margin-bottom: 20px; }
-    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-    .chip { padding: 6px 14px; border-radius: 20px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; }
-    .chip.active { background: #0284c7; color: #fff; border-color: #0284c7; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
-    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 15px; }
     .loading-box {
-      max-width: 600px;
-      margin: 20px auto;
-      background: white;
-      border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 20px;
+      max-width: 700px;
+      margin: 30px auto;
+      background: #fff;
+      border: 1px solid #e4e8ef;
+      border-radius: 16px;
+      padding: 25px;
       text-align: center;
+      box-shadow: 0 5px 18px #17203308;
+      display: none;
     }
   </style>
 </head>
@@ -34,169 +26,590 @@
 <body>
 
 <header class="top">
+
   <nav>
-    <a class="brand" href="index.html">زاد <b>الشريعة والقانون</b></a>
-    <a class="admin" href="admin.html" style="float: left;">لوحة الإدارة</a>
+    <a class="brand" href="index.html">
+      زاد <b>الشريعة والقانون</b>
+    </a>
+
+    <a class="admin" href="admin.html">
+      لوحة الإدارة
+    </a>
   </nav>
 
-  <section class="hero" style="text-align: center; margin: 30px 0;">
+  <section class="hero">
+
     <h1>ملخصات الشريعة والقانون</h1>
-    <p>منصة تعليمية لتنظيم الملخصات والمذكرات والملفات الدراسية في مكان واحد.</p>
-    <div class="search" style="margin-top: 15px;">
-      <input id="q" placeholder="ابحث عن مادة أو ملخص..." style="padding: 8px 12px; width: 60%; max-width: 300px;">
-      <button id="searchBtn" style="padding: 8px 16px;">بحث</button>
+
+    <p>
+      منصة تعليمية لتنظيم الملخصات والمذكرات والملفات الدراسية في مكان واحد.
+    </p>
+
+    <div class="search">
+
+      <input
+        id="q"
+        type="text"
+        placeholder="ابحث عن مادة أو ملخص..."
+        onkeydown="if(event.key === 'Enter') load()"
+      >
+
+      <button onclick="load()">بحث</button>
+
     </div>
+
   </section>
+
 </header>
 
+
 <main>
-  <div class="section-head"><h2>الأقسام</h2></div>
+
+  <div class="section-head">
+    <h2>الأقسام</h2>
+  </div>
+
   <div id="cats" class="chips"></div>
 
-  <div class="section-head"><h2>أحدث المواد</h2></div>
+
+  <div class="section-head">
+    <h2>أحدث المواد</h2>
+  </div>
+
   <div id="cards" class="grid"></div>
-  <div id="status" class="loading-box">جاري تحميل المواد...</div>
+
+
+  <div id="empty" class="loading-box">
+    جاري تحميل المواد...
+  </div>
+
 </main>
 
-<footer style="text-align: center; margin-top: 40px; color: #64748b;">
+
+<footer>
   © 2026 زاد الشريعة والقانون
 </footer>
 
-<!-- محاولة استدعاء config.js دون أن يتسبب غيابه في إيقاف الصفحة -->
-<script src="config.js" onerror="console.warn('config.js غير موجود، سيتم تشغيل وضع العرض التجريبي')"></script>
+
+<!-- إعدادات Supabase -->
+<script src="config.js"></script>
+
 
 <script>
+
 let db = null;
-let selectedCat = '';
-let catsCache = [];
+let selected = '';
+let cachedCategories = [];
 
-function getEls() {
-  return {
-    cards: document.getElementById('cards'),
-    status: document.getElementById('status'),
-    cats: document.getElementById('cats'),
-    q: document.getElementById('q')
-  };
+
+/* ================================
+   الرسائل
+================================ */
+
+function showMessage(message) {
+
+  const empty = document.getElementById('empty');
+  const cards = document.getElementById('cards');
+
+  empty.style.display = 'block';
+  empty.textContent = message;
+
+  cards.innerHTML = '';
+
 }
 
-function setStatus(msg) {
-  const els = getEls();
-  if (!els.status) return;
-  if (msg) {
-    els.status.textContent = msg;
-    els.status.style.display = 'block';
-  } else {
-    els.status.style.display = 'none';
-  }
+
+function hideMessage() {
+
+  document.getElementById('empty').style.display = 'none';
+
 }
 
-function esc(s) {
-  return String(s || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]));
-}
 
-function renderCards(data) {
-  const els = getEls();
-  if (!data || !data.length) {
-    els.cards.innerHTML = '';
-    return setStatus('لا توجد مواد مطابقة للبحث حاليًا.');
-  }
-  
-  els.cards.innerHTML = data.map(x => `
-    <article class="card">
-      <span class="tag" style="background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:4px; font-size:12px;">
-        ${esc(x.categories?.name || 'عام')}
-      </span>
-      <h3>${esc(x.title)}</h3>
-      <p style="color:#64748b; font-size:14px;">${esc(x.description || '')}</p>
-      <div class="actions" style="margin-top:12px;">
-        <a href="view.html?id=${encodeURIComponent(x.id || '')}" style="display:inline-block; padding:6px 12px; background:#0284c7; color:#fff; text-decoration:none; border-radius:6px;">قراءة</a>
-        ${x.file_url ? `<a target="_blank" rel="noopener" href="${esc(x.file_url)}" style="margin-right:8px; text-decoration:none;">تحميل الملف</a>` : ''}
-      </div>
-    </article>
-  `).join('');
-  
-  setStatus(false);
-}
+/* ================================
+   عرض الملخصات
+================================ */
 
-function renderCats() {
-  const els = getEls();
-  els.cats.innerHTML = `
-    <button class="chip ${!selectedCat ? 'active' : ''}" onclick="filterCat('')">الكل</button>
-    ${catsCache.map(c => `
-      <button class="chip ${selectedCat === String(c.id) ? 'active' : ''}" onclick="filterCat('${esc(c.id)}')">${esc(c.name)}</button>
-    `).join('')}
-  `;
-}
+function render(data) {
 
-function filterCat(id) {
-  selectedCat = id;
-  renderCats();
-  loadData();
-}
+  const cards = document.getElementById('cards');
 
-function fallbackDemo() {
-  catsCache = [{ id: '1', name: 'الشريعة' }, { id: '2', name: 'القانون' }];
-  renderCats();
-  renderCards([{
-    id: 'demo',
-    title: 'مثال: مدخل إلى الفقه الإسلامي',
-    description: 'الموقع يعمل بنجاح! تظهر هذه المادة التجريبية لأن إعدادات الربط بقاعدة البيانات غير مكتملة بعد.',
-    categories: { name: 'الشريعة' }
-  }]);
-}
+  if (!data || data.length === 0) {
 
-async function loadData() {
-  if (!db) {
-    fallbackDemo();
+    showMessage('لا توجد مواد منشورة حاليًا.');
+
     return;
+
   }
 
-  setStatus('جاري جلب المواد...');
-  const els = getEls();
-  
-  try {
-    const queryStr = els.q.value.replace(/[,()"]/g, ' ').trim();
-    let req = db.from('summaries').select('*,categories(name)').eq('published', true).order('created_at', { ascending: false }).limit(50);
-    
-    if (queryStr) req = req.or(`title.ilike.%${queryStr}%,description.ilike.%${queryStr}%,content.ilike.%${queryStr}%`);
-    if (selectedCat) req = req.eq('category_id', selectedCat);
+  cards.innerHTML = data.map(x => {
 
-    const { data, error } = await req;
-    if (error) throw error;
-    
-    renderCards(data);
-  } catch (err) {
-    console.error('Data Error', err);
-    fallbackDemo();
-  }
-}
+    const title = esc(x.title || '');
+    const description = esc(x.description || '');
+    const category = esc(x.categories?.name || 'عام');
+    const id = encodeURIComponent(String(x.id || ''));
 
-async function init() {
-  // تفعيل أزرار البحث
-  const els = getEls();
-  document.getElementById('searchBtn').onclick = loadData;
-  els.q.onkeydown = (e) => { if (e.key === 'Enter') loadData(); };
+    let fileButton = '';
 
-  // التحقق من توافر إعدادات Supabase
-  if (typeof window.supabase !== 'undefined' && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
-    try {
-      db = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-      const { data } = await db.from('categories').select('*').order('name');
-      catsCache = data || [];
-      renderCats();
-      await loadData();
-      return;
-    } catch (e) {
-      console.error('خطأ في الاتصال:', e);
+    if (x.file_url) {
+
+      fileButton = `
+        <a
+          class="btn secondary"
+          target="_blank"
+          rel="noopener noreferrer"
+          href="${esc(x.file_url)}"
+        >
+          الملف
+        </a>
+      `;
+
     }
-  }
 
-  // في حال غياب الإعدادات أو تعذر الاتصال يتم تشغيل الديمو تلقائياً لكي لا تبقى الصفحة بيضاء
-  fallbackDemo();
+    return `
+
+      <article class="card">
+
+        <span class="tag">
+          ${category}
+        </span>
+
+        <h3>
+          ${title}
+        </h3>
+
+        <p>
+          ${description}
+        </p>
+
+        <div class="actions">
+
+          <a
+            class="btn"
+            href="view.html?id=${id}"
+          >
+            قراءة
+          </a>
+
+          ${fileButton}
+
+        </div>
+
+      </article>
+
+    `;
+
+  }).join('');
+
+  hideMessage();
+
 }
 
-// تشغيل الكود فور جاهزية الصفحة
-document.addEventListener('DOMContentLoaded', init);
+
+/* ================================
+   عرض الأقسام
+================================ */
+
+function renderCats(data) {
+
+  const cats = document.getElementById('cats');
+
+  cats.innerHTML = `
+
+    <button
+      class="chip ${selected === '' ? 'active' : ''}"
+      onclick="selectCategory('')"
+    >
+      الكل
+    </button>
+
+    ${data.map(x => {
+
+      const id = String(x.id);
+
+      return `
+
+        <button
+          class="chip ${selected === id ? 'active' : ''}"
+          onclick="selectCategory('${escapeAttribute(id)}')"
+        >
+          ${esc(x.name || '')}
+        </button>
+
+      `;
+
+    }).join('')}
+
+  `;
+
+}
+
+
+/* ================================
+   اختيار القسم
+================================ */
+
+function selectCategory(id) {
+
+  selected = String(id || '');
+
+  renderCats(cachedCategories);
+
+  load();
+
+}
+
+
+/* ================================
+   الوضع التجريبي
+================================ */
+
+function demo() {
+
+  cachedCategories = [
+
+    {
+      id: '1',
+      name: 'الشريعة'
+    },
+
+    {
+      id: '2',
+      name: 'القانون'
+    }
+
+  ];
+
+  renderCats(cachedCategories);
+
+
+  render([
+
+    {
+      id: '',
+      title: 'مثال: مدخل إلى أصول الفقه',
+
+      description:
+        'الموقع يعمل بنجاح. عند اتصال قاعدة البيانات ستظهر ملخصاتك هنا.',
+
+      categories: {
+        name: 'الشريعة'
+      },
+
+      file_url: ''
+
+    }
+
+  ]);
+
+}
+
+
+/* ================================
+   تحميل الأقسام
+================================ */
+
+async function loadCategories() {
+
+  try {
+
+    const result = await db
+      .from('categories')
+      .select('*')
+      .order('name');
+
+    if (result.error) {
+
+      console.error(
+        'خطأ في تحميل الأقسام:',
+        result.error
+      );
+
+      return;
+
+    }
+
+    cachedCategories = result.data || [];
+
+    renderCats(cachedCategories);
+
+  } catch (error) {
+
+    console.error(
+      'حدث خطأ أثناء تحميل الأقسام:',
+      error
+    );
+
+  }
+
+}
+
+
+/* ================================
+   تحميل الملخصات
+================================ */
+
+async function load() {
+
+  if (!db) {
+
+    demo();
+
+    return;
+
+  }
+
+
+  const q =
+    document.getElementById('q').value.trim();
+
+
+  const empty =
+    document.getElementById('empty');
+
+
+  if (q || selected) {
+
+    empty.style.display = 'block';
+    empty.textContent = 'جاري البحث...';
+
+  }
+
+
+  try {
+
+    let query = db
+      .from('summaries')
+      .select('*,categories(name)')
+      .eq('published', true)
+      .order('created_at', {
+        ascending: false
+      });
+
+
+    if (q) {
+
+      /*
+        نستخدم البحث في العنوان والوصف والمحتوى.
+        ونزيل الفاصلة من النص حتى لا تكسر صيغة OR.
+      */
+
+      const safeQ =
+        q
+          .replace(/,/g, ' ')
+          .replace(/\(/g, ' ')
+          .replace(/\)/g, ' ');
+
+
+      query = query.or(
+
+        `title.ilike.%${safeQ}%,description.ilike.%${safeQ}%,content.ilike.%${safeQ}%`
+
+      );
+
+    }
+
+
+    if (selected) {
+
+      query =
+        query.eq(
+          'category_id',
+          selected
+        );
+
+    }
+
+
+    const result =
+      await query;
+
+
+    if (result.error) {
+
+      console.error(
+        'خطأ في تحميل الملخصات:',
+        result.error
+      );
+
+      demo();
+
+      return;
+
+    }
+
+
+    render(result.data || []);
+
+  } catch (error) {
+
+    console.error(
+      'حدث خطأ:',
+      error
+    );
+
+    demo();
+
+  }
+
+}
+
+
+/* ================================
+   حماية النصوص
+================================ */
+
+function esc(value) {
+
+  return String(value || '')
+    .replace(
+      /[&<>"']/g,
+      function (m) {
+
+        return {
+
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+
+        }[m];
+
+      }
+    );
+
+}
+
+
+function escapeAttribute(value) {
+
+  return String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'");
+
+}
+
+
+/* ================================
+   تشغيل Supabase
+================================ */
+
+async function startSupabase() {
+
+  if (
+
+    !window.supabase ||
+
+    !window.SUPABASE_URL ||
+
+    !window.SUPABASE_ANON_KEY
+
+  ) {
+
+    console.error(
+      'بيانات Supabase غير موجودة.'
+    );
+
+    demo();
+
+    return;
+
+  }
+
+
+  try {
+
+    db =
+      window.supabase.createClient(
+
+        window.SUPABASE_URL,
+
+        window.SUPABASE_ANON_KEY
+
+      );
+
+
+    await loadCategories();
+
+    await load();
+
+  } catch (error) {
+
+    console.error(
+      'فشل تشغيل Supabase:',
+      error
+    );
+
+    demo();
+
+  }
+
+}
+
+
+/* ================================
+   تحميل مكتبة Supabase
+================================ */
+
+function loadSupabase() {
+
+  const script =
+    document.createElement('script');
+
+
+  script.src =
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+
+
+  script.onload = function () {
+
+    startSupabase();
+
+  };
+
+
+  script.onerror = function () {
+
+    console.error(
+      'تعذر تحميل مكتبة Supabase.'
+    );
+
+    demo();
+
+  };
+
+
+  document.head.appendChild(script);
+
+}
+
+
+/* ================================
+   بدء الموقع
+================================ */
+
+document.addEventListener(
+  'DOMContentLoaded',
+  function () {
+
+    const empty =
+      document.getElementById('empty');
+
+    empty.style.display = 'block';
+    empty.textContent = 'جاري تشغيل الموقع...';
+
+    /*
+      نبدأ تحميل Supabase بعد ظهور الصفحة
+      حتى لا تمنع المكتبة الخارجية الموقع من الظهور.
+    */
+
+    loadSupabase();
+
+  }
+);
+
 </script>
+
 </body>
 </html>
