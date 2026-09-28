@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>لوحة الإدارة | زاد الشريعة والقانون</title><link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="adminbar"><div><a class="brand" href="index.html">زاد <b>الشريعة والقانون</b></a></div><button id="logout" class="danger" hidden>تسجيل الخروج</button></header>
+<main class="adminmain">
+<section id="loginBox" class="panel"><h1>دخول المدير</h1><p>الدخول محمي بحساب Supabase Auth.</p><input id="email" type="email" placeholder="البريد الإلكتروني"><input id="password" type="password" placeholder="كلمة المرور"><button class="btn full" onclick="login()">دخول</button><div id="msg"></div></section>
+<section id="dashboard" hidden>
+<div class="section-head"><h1>لوحة التحكم</h1><button class="btn" onclick="newItem()">+ إضافة ملخص</button></div>
+<div class="panel"><h2>الأقسام</h2><div class="row"><input id="catName" placeholder="اسم القسم"><button class="btn" onclick="addCat()">إضافة قسم</button></div><div id="catList"></div></div>
+<div class="panel"><h2 id="formTitle">إضافة ملخص</h2><input id="title" placeholder="عنوان الملخص"><select id="category"></select><input id="description" placeholder="وصف مختصر"><textarea id="content" rows="10" placeholder="محتوى الملخص"></textarea><label>ملف PDF أو صورة <input id="file" type="file" accept=".pdf,image/*"></label><div class="row"><button class="btn" onclick="save()">حفظ</button><button class="btn secondary" onclick="newItem()">إلغاء</button></div><div id="saveMsg"></div></div>
+<div class="panel"><h2>الملخصات</h2><div id="list"></div></div>
+</section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="config.js"></script>
+<script>
+let db=null,current=null;
+if(window.SUPABASE_URL && !window.SUPABASE_URL.includes('YOUR_')) db=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+async function login(){if(!db)return msg.textContent='أكمل إعداد config.js أولًا.';let {error}=await db.auth.signInWithPassword({email:email.value,password:password.value});if(error)msg.textContent=error.message;else init()}
+async function init(){if(!db)return;let {data:{session}}=await db.auth.getSession();if(session){loginBox.hidden=true;dashboard.hidden=false;logout.hidden=false;await refresh()}else{loginBox.hidden=false;dashboard.hidden=true}}
+logout.onclick=async()=>{await db.auth.signOut();location.reload()};
+async function refresh(){let c=await db.from('categories').select('*').order('name');category.innerHTML=(c.data||[]).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');catList.innerHTML=(c.data||[]).map(x=>`<div class="item"><span>${esc(x.name)}</span><button class="danger small" onclick="delCat('${x.id}')">حذف</button></div>`).join('');let s=await db.from('summaries').select('*,categories(name)').order('created_at',{ascending:false});list.innerHTML=(s.data||[]).map(x=>`<div class="item"><div><b>${esc(x.title)}</b><small>${esc(x.categories?.name||'')}</small></div><div><button class="btn small" onclick='edit(${JSON.stringify(x)})'>تعديل</button><button class="danger small" onclick="delItem('${x.id}')">حذف</button></div></div>`).join('')}
+function newItem(){current=null;formTitle.textContent='إضافة ملخص';title.value='';description.value='';content.value='';file.value=''}
+function edit(x){current=x;formTitle.textContent='تعديل ملخص';title.value=x.title||'';description.value=x.description||'';content.value=x.content||'';category.value=x.category_id}
+async function save(){if(!db)return;saveMsg.textContent='جارٍ الحفظ...';let fileUrl=current?.file_url||null;let f=file.files[0];if(f){let path=Date.now()+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_');let up=await db.storage.from('materials').upload(path,f,{upsert:false});if(up.error){saveMsg.textContent=up.error.message;return}fileUrl=db.storage.from('materials').getPublicUrl(path).data.publicUrl}
+let payload={title:title.value.trim(),description:description.value.trim(),content:content.value,category_id:category.value,file_url:fileUrl,published:true};
+let r=current?await db.from('summaries').update(payload).eq('id',current.id):await db.from('summaries').insert(payload);saveMsg.textContent=r.error?r.error.message:'تم الحفظ بنجاح';if(!r.error){newItem();refresh()}}
+async function delItem(id){if(confirm('حذف هذا الملخص؟')){await db.from('summaries').delete().eq('id',id);refresh()}}
+async function addCat(){if(catName.value.trim()){await db.from('categories').insert({name:catName.value.trim()});catName.value='';refresh()}}
+async function delCat(id){if(confirm('حذف القسم؟ يجب ألا يحتوي على ملخصات.')){await db.from('categories').delete().eq('id',id);refresh()}}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+init();
+</script>
+</body></html>

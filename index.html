@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>زاد الشريعة والقانون</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+<nav><a class="brand" href="index.html">زاد <b>الشريعة والقانون</b></a><a class="admin" href="admin.html">لوحة الإدارة</a></nav>
+<section class="hero">
+<h1>ملخصات الشريعة والقانون</h1>
+<p>منصة تعليمية لتنظيم الملخصات والمذكرات والملفات الدراسية في مكان واحد.</p>
+<div class="search"><input id="q" placeholder="ابحث عن مادة أو ملخص..."><button onclick="load()">بحث</button></div>
+</section>
+</header>
+<main>
+<div class="section-head"><h2>الأقسام</h2></div><div id="cats" class="chips"></div>
+<div class="section-head"><h2>أحدث المواد</h2></div><div id="cards" class="grid"></div>
+<div id="empty" class="empty">لا توجد مواد منشورة حاليًا.</div>
+</main>
+<footer>© 2026 زاد الشريعة والقانون</footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+let db=null, selected='';
+if(window.SUPABASE_URL && !window.SUPABASE_URL.includes('YOUR_')) db=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+async function load(){
+ const q=document.getElementById('q').value.trim();
+ if(!db){demo();return}
+ let query=db.from('summaries').select('*,categories(name)').eq('published',true).order('created_at',{ascending:false});
+ if(q) query=query.or(`title.ilike.%${q}%,description.ilike.%${q}%,content.ilike.%${q}%`);
+ if(selected) query=query.eq('category_id',selected);
+ const {data,error}=await query;
+ render(data||[]);
+ const c=await db.from('categories').select('*').order('name');
+ renderCats(c.data||[]);
+}
+function render(data){cards.innerHTML=data.map(x=>`<article class="card"><span class="tag">${x.categories?.name||'عام'}</span><h3>${esc(x.title)}</h3><p>${esc(x.description||'')}</p><div class="actions"><a class="btn" href="view.html?id=${x.id}">قراءة</a>${x.file_url?`<a class="btn secondary" target="_blank" href="${x.file_url}">الملف</a>`:''}</div></article>`).join('');empty.style.display=data.length?'none':'block'}
+function renderCats(data){cats.innerHTML='<button class="chip '+(!selected?'active':'')+'" onclick="selected=\'\';load()">الكل</button>'+data.map(x=>`<button class="chip ${selected==x.id?'active':''}" onclick="selected='${x.id}';load()">${esc(x.name)}</button>`).join('')}
+function demo(){render([{id:'',title:'مثال: مدخل إلى أصول الفقه',description:'سيتم استبدال هذه البيانات بملخصاتك بعد ربط Supabase.',categories:{name:'الشريعة'},file_url:''}]);renderCats([{id:'1',name:'الشريعة'},{id:'2',name:'القانون'}])}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+load();
+</script>
+</body></html>
