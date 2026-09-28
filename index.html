@@ -1,159 +1,415 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
 <title>زاد الشريعة والقانون</title>
+
 <link rel="stylesheet" href="style.css">
+
+<style>
+.loading-box{
+  max-width:700px;
+  margin:30px auto;
+  background:white;
+  border:1px solid #e4e8ef;
+  border-radius:16px;
+  padding:25px;
+  text-align:center;
+  box-shadow:0 5px 18px #17203308;
+}
+</style>
 </head>
+
 <body>
+
 <header class="top">
-<nav><a class="brand" href="index.html">زاد <b>الشريعة والقانون</b></a><a class="admin" href="admin.html">لوحة الإدارة</a></nav>
+
+<nav>
+<a class="brand" href="index.html">
+زاد <b>الشريعة والقانون</b>
+</a>
+
+<a class="admin" href="admin.html">
+لوحة الإدارة
+</a>
+</nav>
+
 <section class="hero">
+
 <h1>ملخصات الشريعة والقانون</h1>
-<p>منصة تعليمية لتنظيم الملخصات والمذكرات والملفات الدراسية في مكان واحد.</p>
-<div class="search"><input id="q" placeholder="ابحث عن مادة أو ملخص..."><button onclick="load()">بحث</button></div>
+
+<p>
+منصة تعليمية لتنظيم الملخصات والمذكرات والملفات الدراسية في مكان واحد.
+</p>
+
+<div class="search">
+<input id="q" placeholder="ابحث عن مادة أو ملخص...">
+<button onclick="load()">بحث</button>
+</div>
+
 </section>
+
 </header>
 
+
 <main>
-<div class="section-head"><h2>الأقسام</h2></div>
+
+<div class="section-head">
+<h2>الأقسام</h2>
+</div>
+
 <div id="cats" class="chips"></div>
 
-<div class="section-head"><h2>أحدث المواد</h2></div>
+
+<div class="section-head">
+<h2>أحدث المواد</h2>
+</div>
+
 <div id="cards" class="grid"></div>
 
-<div id="empty" class="empty">لا توجد مواد منشورة حاليًا.</div>
+
+<div id="empty" class="empty">
+جاري تحميل المواد...
+</div>
+
 </main>
 
-<footer>© 2026 زاد الشريعة والقانون</footer>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<footer>
+© 2026 زاد الشريعة والقانون
+</footer>
+
+
 <script src="config.js"></script>
 
 <script>
-let db = null, selected = '';
 
-if (
-  window.SUPABASE_URL &&
-  !window.SUPABASE_URL.includes('YOUR_') &&
-  window.supabase
-) {
-  db = window.supabase.createClient(
-    window.SUPABASE_URL,
-    window.SUPABASE_ANON_KEY
-  );
+let db = null;
+let selected = '';
+
+
+function showMessage(message){
+
+  document.getElementById('empty').style.display = 'block';
+
+  document.getElementById('empty').textContent = message;
+
 }
 
-async function load() {
-  const q = document.getElementById('q').value.trim();
 
-  if (!db) {
-    demo();
+function render(data){
+
+  const cards = document.getElementById('cards');
+
+  if(!data || data.length === 0){
+
+    cards.innerHTML = '';
+
+    showMessage('لا توجد مواد منشورة حاليًا.');
+
     return;
+
   }
 
-  let query = db
-    .from('summaries')
-    .select('*,categories(name)')
-    .eq('published', true)
-    .order('created_at', { ascending: false });
 
-  if (q) {
-    query = query.or(
-      `title.ilike.%${q}%,description.ilike.%${q}%,content.ilike.%${q}%`
-    );
-  }
+  cards.innerHTML = data.map(x => `
 
-  if (selected) {
-    query = query.eq('category_id', selected);
-  }
+    <article class="card">
 
-  const { data, error } = await query;
+      <span class="tag">
+        ${x.categories?.name || 'عام'}
+      </span>
 
-  render(data || []);
+      <h3>
+        ${esc(x.title)}
+      </h3>
 
-  const c = await db
-    .from('categories')
-    .select('*')
-    .order('name');
+      <p>
+        ${esc(x.description || '')}
+      </p>
 
-  renderCats(c.data || []);
+      <div class="actions">
+
+        <a class="btn"
+           href="view.html?id=${x.id}">
+           قراءة
+        </a>
+
+        ${
+          x.file_url
+          ?
+          `<a class="btn secondary"
+              target="_blank"
+              href="${x.file_url}">
+              الملف
+           </a>`
+          :
+          ''
+        }
+
+      </div>
+
+    </article>
+
+  `).join('');
+
+  document.getElementById('empty').style.display = 'none';
+
 }
 
-function render(data) {
-  document.getElementById('cards').innerHTML = data
-    .map(x => `
-      <article class="card">
-        <span class="tag">${x.categories?.name || 'عام'}</span>
-        <h3>${esc(x.title)}</h3>
-        <p>${esc(x.description || '')}</p>
-        <div class="actions">
-          <a class="btn" href="view.html?id=${x.id}">قراءة</a>
-          ${
-            x.file_url
-              ? `<a class="btn secondary" target="_blank" href="${x.file_url}">الملف</a>`
-              : ''
-          }
-        </div>
-      </article>
-    `)
-    .join('');
 
-  document.getElementById('empty').style.display =
-    data.length ? 'none' : 'block';
+function renderCats(data){
+
+  const cats = document.getElementById('cats');
+
+  cats.innerHTML =
+
+    '<button class="chip active" onclick="selected=\'\';load()">الكل</button>'
+
+    +
+
+    data.map(x => `
+
+      <button
+        class="chip"
+        onclick="selected='${x.id}';load()">
+
+        ${esc(x.name)}
+
+      </button>
+
+    `).join('');
+
 }
 
-function renderCats(data) {
-  document.getElementById('cats').innerHTML =
-    '<button class="chip ' +
-    (!selected ? 'active' : '') +
-    '" onclick="selected=\'\';load()">الكل</button>' +
-    data
-      .map(
-        x => `
-        <button class="chip ${
-          selected == x.id ? 'active' : ''
-        }" onclick="selected='${x.id}';load()">
-          ${esc(x.name)}
-        </button>
-      `
-      )
-      .join('');
-}
 
-function demo() {
+function demo(){
+
   render([
+
     {
-      id: '',
-      title: 'مثال: مدخل إلى أصول الفقه',
+      id:'',
+      title:'مثال: مدخل إلى أصول الفقه',
+
       description:
-        'سيتم استبدال هذه البيانات بملخصاتك بعد ربط Supabase.',
-      categories: { name: 'الشريعة' },
-      file_url: ''
+      'الموقع يعمل بنجاح، وسيتم عرض ملخصاتك بعد ربط قاعدة البيانات.',
+
+      categories:{
+        name:'الشريعة'
+      },
+
+      file_url:''
     }
+
   ]);
+
 
   renderCats([
-    { id: '1', name: 'الشريعة' },
-    { id: '2', name: 'القانون' }
+
+    {
+      id:'1',
+      name:'الشريعة'
+    },
+
+    {
+      id:'2',
+      name:'القانون'
+    }
+
   ]);
+
 }
 
-function esc(s) {
-  return String(s || '').replace(
-    /[&<>"']/g,
-    m =>
-      ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
+
+async function load(){
+
+  if(!db){
+
+    demo();
+
+    return;
+
+  }
+
+
+  try{
+
+    const q =
+      document.getElementById('q').value.trim();
+
+
+    let query = db
+      .from('summaries')
+      .select('*,categories(name)')
+      .eq('published',true)
+      .order('created_at',{
+        ascending:false
+      });
+
+
+    if(q){
+
+      query = query.or(
+
+        `title.ilike.%${q}%,description.ilike.%${q}%,content.ilike.%${q}%`
+
+      );
+
+    }
+
+
+    if(selected){
+
+      query =
+        query.eq('category_id',selected);
+
+    }
+
+
+    const result =
+      await query;
+
+
+    if(result.error){
+
+      console.error(result.error);
+
+      demo();
+
+      return;
+
+    }
+
+
+    render(result.data || []);
+
+
+    const categoryResult =
+      await db
+      .from('categories')
+      .select('*')
+      .order('name');
+
+
+    renderCats(
+      categoryResult.data || []
+    );
+
+
+  }catch(error){
+
+    console.error(error);
+
+    demo();
+
+  }
+
+}
+
+
+function esc(s){
+
+  return String(s || '')
+    .replace(
+      /[&<>"']/g,
+
+      m => ({
+
+        '&':'&amp;',
+        '<':'&lt;',
+        '>':'&gt;',
+        '"':'&quot;',
+        "'":'&#39;'
+
       }[m])
-  );
+
+    );
+
 }
 
-load();
+
+/* تحميل Supabase بدون تعطيل ظهور الصفحة */
+
+function startSupabase(){
+
+  if(
+    !window.supabase ||
+    !window.SUPABASE_URL ||
+    !window.SUPABASE_ANON_KEY
+  ){
+
+    demo();
+
+    return;
+
+  }
+
+
+  try{
+
+    db =
+      window.supabase.createClient(
+        window.SUPABASE_URL,
+        window.SUPABASE_ANON_KEY
+      );
+
+    load();
+
+  }catch(error){
+
+    console.error(error);
+
+    demo();
+
+  }
+
+}
+
+
+function loadSupabase(){
+
+  const script =
+    document.createElement('script');
+
+  script.src =
+    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+
+  script.onload =
+    startSupabase;
+
+  script.onerror =
+    function(){
+
+      console.error(
+        'تعذر تحميل مكتبة Supabase'
+      );
+
+      demo();
+
+    };
+
+  document.head.appendChild(script);
+
+}
+
+
+/* إظهار الموقع أولًا */
+
+document.addEventListener(
+  'DOMContentLoaded',
+  function(){
+
+    renderCats([]);
+
+    render([]);
+
+    loadSupabase();
+
+  }
+);
+
 </script>
 
 </body>
