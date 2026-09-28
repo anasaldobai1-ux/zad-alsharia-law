@@ -1,416 +1,157 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>زاد الشريعة والقانون</title>
+  
+  <link rel="stylesheet" href="style.css">
 
-<title>زاد الشريعة والقانون</title>
-
-<link rel="stylesheet" href="style.css">
-
-<style>
-.loading-box{
-  max-width:700px;
-  margin:30px auto;
-  background:white;
-  border:1px solid #e4e8ef;
-  border-radius:16px;
-  padding:25px;
-  text-align:center;
-  box-shadow:0 5px 18px #17203308;
-}
-</style>
+  <style>
+    .loading-box {
+      max-width: 700px;
+      margin: 30px auto;
+      background: white;
+      border: 1px solid #e4e8ef;
+      border-radius: 16px;
+      padding: 25px;
+      text-align: center;
+      box-shadow: 0 5px 18px rgba(23, 32, 51, 0.05);
+      display: none;
+    }
+  </style>
 </head>
 
 <body>
 
 <header class="top">
+  <nav>
+    <a class="brand" href="index.html">زاد <b>الشريعة والقانون</b></a>
+    <a class="admin" href="admin.html">لوحة الإدارة</a>
+  </nav>
 
-<nav>
-<a class="brand" href="index.html">
-زاد <b>الشريعة والقانون</b>
-</a>
-
-<a class="admin" href="admin.html">
-لوحة الإدارة
-</a>
-</nav>
-
-<section class="hero">
-
-<h1>ملخصات الشريعة والقانون</h1>
-
-<p>
-منصة تعليمية لتنظيم الملخصات والمذكرات والملفات الدراسية في مكان واحد.
-</p>
-
-<div class="search">
-<input id="q" placeholder="ابحث عن مادة أو ملخص...">
-<button onclick="load()">بحث</button>
-</div>
-
-</section>
-
+  <section class="hero">
+    <h1>ملخصات الشريعة والقانون</h1>
+    <p>منصة تعليمية لتنظيم الملخصات والمذكرات والملفات الدراسية في مكان واحد.</p>
+    <div class="search">
+      <input id="q" placeholder="ابحث عن مادة أو ملخص..." onkeydown="if(event.key === 'Enter') loadData()">
+      <button onclick="loadData()">بحث</button>
+    </div>
+  </section>
 </header>
 
-
 <main>
+  <div class="section-head"><h2>الأقسام</h2></div>
+  <div id="cats" class="chips"></div>
 
-<div class="section-head">
-<h2>الأقسام</h2>
-</div>
-
-<div id="cats" class="chips"></div>
-
-
-<div class="section-head">
-<h2>أحدث المواد</h2>
-</div>
-
-<div id="cards" class="grid"></div>
-
-
-<div id="empty" class="empty">
-جاري تحميل المواد...
-</div>
-
+  <div class="section-head"><h2>أحدث المواد</h2></div>
+  <div id="cards" class="grid"></div>
+  <div id="status" class="loading-box">جاري تهيئة النظام...</div>
 </main>
 
-
-<footer>
-© 2026 زاد الشريعة والقانون
-</footer>
-
+<footer>© 2026 زاد الشريعة والقانون</footer>
 
 <script src="config.js"></script>
-
 <script>
+let db = null, selectedCat = '', catsCache = [], isLive = false;
+const els = { cards: document.getElementById('cards'), status: document.getElementById('status'), cats: document.getElementById('cats'), q: document.getElementById('q') };
 
-let db = null;
-let selected = '';
-
-
-function showMessage(message){
-
-  document.getElementById('empty').style.display = 'block';
-
-  document.getElementById('empty').textContent = message;
-
+function setStatus(msg) {
+  els.cards.innerHTML = '';
+  els.status.textContent = msg;
+  els.status.style.display = msg ? 'block' : 'none';
 }
 
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]));
+}
 
-function render(data){
-
-  const cards = document.getElementById('cards');
-
-  if(!data || data.length === 0){
-
-    cards.innerHTML = '';
-
-    showMessage('لا توجد مواد منشورة حاليًا.');
-
-    return;
-
-  }
-
-
-  cards.innerHTML = data.map(x => `
-
+function renderCards(data) {
+  if (!data?.length) return setStatus('لا توجد مواد مطابقة للبحث حاليًا.');
+  
+  els.cards.innerHTML = data.map(x => `
     <article class="card">
-
-      <span class="tag">
-        ${x.categories?.name || 'عام'}
-      </span>
-
-      <h3>
-        ${esc(x.title)}
-      </h3>
-
-      <p>
-        ${esc(x.description || '')}
-      </p>
-
+      <span class="tag">${esc(x.categories?.name || 'عام')}</span>
+      <h3>${esc(x.title)}</h3>
+      <p>${esc(x.description)}</p>
       <div class="actions">
-
-        <a class="btn"
-           href="view.html?id=${x.id}">
-           قراءة
-        </a>
-
-        ${
-          x.file_url
-          ?
-          `<a class="btn secondary"
-              target="_blank"
-              href="${x.file_url}">
-              الملف
-           </a>`
-          :
-          ''
-        }
-
+        <a class="btn" href="view.html?id=${encodeURIComponent(x.id)}">قراءة</a>
+        ${x.file_url ? `<a class="btn secondary" target="_blank" rel="noopener" href="${esc(x.file_url)}">الملف</a>` : ''}
       </div>
-
     </article>
-
   `).join('');
-
-  document.getElementById('empty').style.display = 'none';
-
+  setStatus(false);
 }
 
-
-function renderCats(data){
-
-  const cats = document.getElementById('cats');
-
-  cats.innerHTML =
-
-    '<button class="chip active" onclick="selected=\'\';load()">الكل</button>'
-
-    +
-
-    data.map(x => `
-
-      <button
-        class="chip"
-        onclick="selected='${x.id}';load()">
-
-        ${esc(x.name)}
-
-      </button>
-
-    `).join('');
-
+function renderCats() {
+  els.cats.innerHTML = `
+    <button class="chip ${!selectedCat ? 'active' : ''}" onclick="filterCat('')">الكل</button>
+    ${catsCache.map(c => `
+      <button class="chip ${selectedCat === String(c.id) ? 'active' : ''}" onclick="filterCat('${esc(c.id)}')">${esc(c.name)}</button>
+    `).join('')}
+  `;
 }
 
-
-function demo(){
-
-  render([
-
-    {
-      id:'',
-      title:'مثال: مدخل إلى أصول الفقه',
-
-      description:
-      'الموقع يعمل بنجاح، وسيتم عرض ملخصاتك بعد ربط قاعدة البيانات.',
-
-      categories:{
-        name:'الشريعة'
-      },
-
-      file_url:''
-    }
-
-  ]);
-
-
-  renderCats([
-
-    {
-      id:'1',
-      name:'الشريعة'
-    },
-
-    {
-      id:'2',
-      name:'القانون'
-    }
-
-  ]);
-
+function filterCat(id) {
+  selectedCat = id;
+  renderCats();
+  loadData();
 }
 
+function fallbackDemo() {
+  isLive = false;
+  catsCache = [{ id: '1', name: 'الشريعة' }, { id: '2', name: 'القانون' }];
+  renderCats();
+  renderCards([{ id: 'demo', title: 'مثال توضيحي', description: 'سيتم عرض البيانات الحقيقية بعد ربط قاعدة البيانات.', categories: { name: 'عام' } }]);
+}
 
-async function load(){
+async function fetchCategories() {
+  try {
+    const { data } = await db.from('categories').select('*').order('name');
+    catsCache = data || [];
+    renderCats();
+  } catch (e) { console.error('Cats Error', e); }
+}
 
-  if(!db){
+async function loadData() {
+  if (!db || !isLive) return fallbackDemo();
+  
+  setStatus('جاري جلب المواد...');
+  try {
+    const queryStr = els.q.value.replace(/[,()"]/g, ' ').trim(); // تنظيف البحث لمنع أخطاء Supabase
+    let req = db.from('summaries').select('*,categories(name)').eq('published', true).order('created_at', { ascending: false }).limit(50);
+    
+    if (queryStr) req = req.or(`title.ilike.%${queryStr}%,description.ilike.%${queryStr}%,content.ilike.%${queryStr}%`);
+    if (selectedCat) req = req.eq('category_id', selectedCat);
 
-    demo();
-
-    return;
-
+    const { data, error } = await req;
+    if (error) throw error;
+    
+    renderCards(data);
+  } catch (err) {
+    console.error('Data Error', err);
+    setStatus('حدث خطأ أثناء جلب البيانات. تحقق من الاتصال.');
   }
-
-
-  try{
-
-    const q =
-      document.getElementById('q').value.trim();
-
-
-    let query = db
-      .from('summaries')
-      .select('*,categories(name)')
-      .eq('published',true)
-      .order('created_at',{
-        ascending:false
-      });
-
-
-    if(q){
-
-      query = query.or(
-
-        `title.ilike.%${q}%,description.ilike.%${q}%,content.ilike.%${q}%`
-
-      );
-
-    }
-
-
-    if(selected){
-
-      query =
-        query.eq('category_id',selected);
-
-    }
-
-
-    const result =
-      await query;
-
-
-    if(result.error){
-
-      console.error(result.error);
-
-      demo();
-
-      return;
-
-    }
-
-
-    render(result.data || []);
-
-
-    const categoryResult =
-      await db
-      .from('categories')
-      .select('*')
-      .order('name');
-
-
-    renderCats(
-      categoryResult.data || []
-    );
-
-
-  }catch(error){
-
-    console.error(error);
-
-    demo();
-
-  }
-
 }
 
-
-function esc(s){
-
-  return String(s || '')
-    .replace(
-      /[&<>"']/g,
-
-      m => ({
-
-        '&':'&amp;',
-        '<':'&lt;',
-        '>':'&gt;',
-        '"':'&quot;',
-        "'":'&#39;'
-
-      }[m])
-
-    );
-
+function initSupabase() {
+  if (!window.supabase || !window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) return fallbackDemo();
+  
+  try {
+    db = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    isLive = true;
+    fetchCategories().then(loadData);
+  } catch (e) { fallbackDemo(); }
 }
 
-
-/* تحميل Supabase بدون تعطيل ظهور الصفحة */
-
-function startSupabase(){
-
-  if(
-    !window.supabase ||
-    !window.SUPABASE_URL ||
-    !window.SUPABASE_ANON_KEY
-  ){
-
-    demo();
-
-    return;
-
-  }
-
-
-  try{
-
-    db =
-      window.supabase.createClient(
-        window.SUPABASE_URL,
-        window.SUPABASE_ANON_KEY
-      );
-
-    load();
-
-  }catch(error){
-
-    console.error(error);
-
-    demo();
-
-  }
-
-}
-
-
-function loadSupabase(){
-
-  const script =
-    document.createElement('script');
-
-  script.src =
-    'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-
-  script.onload =
-    startSupabase;
-
-  script.onerror =
-    function(){
-
-      console.error(
-        'تعذر تحميل مكتبة Supabase'
-      );
-
-      demo();
-
-    };
-
+document.addEventListener('DOMContentLoaded', () => {
+  setStatus('جاري تحميل النظام...');
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  script.onload = initSupabase;
+  script.onerror = fallbackDemo;
   document.head.appendChild(script);
-
-}
-
-
-/* إظهار الموقع أولًا */
-
-document.addEventListener(
-  'DOMContentLoaded',
-  function(){
-
-    renderCats([]);
-
-    render([]);
-
-    loadSupabase();
-
-  }
-);
-
+});
 </script>
-
 </body>
 </html>
